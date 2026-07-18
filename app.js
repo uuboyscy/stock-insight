@@ -441,7 +441,7 @@ function renderUniverse() {
   $("#universeTableBody").innerHTML = rows.length ? rows.map(item => {
     const selected = state.compareCodes.includes(item.code);
     return `<tr class="${selected ? "is-selected" : ""}">
-      <td><div class="instrument-cell"><span class="stock-avatar">${item.code.slice(0, 2)}</span><div><strong>${escapeHtml(item.name)}</strong><span>${item.code}</span></div></div></td>
+      <td><div class="instrument-cell"><div><strong>${escapeHtml(item.name)}</strong><span>${item.code}</span></div></div></td>
       <td><span class="asset-pair"><b>${item.type}</b>${marketLabel(item.market)}</span></td>
       <td>${escapeHtml(item.industry)}</td>
       <td>${escapeHtml(item.chain)}</td>
@@ -626,7 +626,7 @@ function renderWatchlist() {
     const signalClass = f21 > 2 ? "positive" : f21 < -2 ? "caution" : "watch";
     const signalText = f21 > 2 ? "偏多觀察" : f21 < -2 ? "風險升高" : "等待確認";
     return `<tr>
-      <td><div class="stock-cell"><span class="stock-avatar">${stock.code.slice(0, 2)}</span><div><strong>${stock.name}</strong><span>${stock.code} · ${stock.sector}</span></div></div></td>
+      <td><div class="stock-cell"><div><strong>${stock.name}</strong><span>${stock.code} · ${stock.sector}</span></div></div></td>
       <td class="mono">${fmt(stock.price, stock.price > 100 ? 0 : 2)} <span class="change ${stock.change >= 0 ? "up" : "down"}">${pct(stock.change)}</span></td>
       <td class="mono"><span class="change ${f3 >= 0 ? "up" : "down"}">${pct(f3)}</span></td>
       <td class="mono"><span class="change ${f21 >= 0 ? "up" : "down"}">${pct(f21)}</span></td>

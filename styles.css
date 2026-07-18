@@ -330,9 +330,8 @@ td.mono { font-family: var(--mono); }
 .universe-table th, .universe-table td { padding: 12px 14px; }
 .universe-table tr.is-selected { background: rgba(57,184,107,.055); }
 .instrument-cell { display: flex; align-items: center; gap: 9px; min-width: 150px; }
-.instrument-cell .stock-avatar { flex: 0 0 auto; }
 .instrument-cell strong { display: block; font-size: 11px; }
-.instrument-cell span { display: block; margin-top: 2px; color: var(--muted); font: 400 9px var(--mono); }
+.instrument-cell > div > span { display: block; margin-top: 2px; color: var(--muted); font: 400 9px var(--mono); }
 .asset-pair { display: grid; gap: 3px; color: var(--muted); font-size: 9px; }
 .asset-pair b { color: var(--ink); font-size: 10px; }
 .stage-pill, .relation-tag { display: inline-flex; align-items: center; border-radius: 5px; white-space: nowrap; }
@@ -374,9 +373,8 @@ td.mono { font-family: var(--mono); }
 .watch-table-wrap { overflow: hidden; }
 .watch-table th, .watch-table td { padding: 14px 15px; }
 .stock-cell { display: flex; align-items: center; gap: 9px; }
-.stock-avatar { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 8px; color: var(--green-dark); background: var(--green-soft); font: 500 9px var(--mono); }
 .stock-cell strong { display: block; font-size: 11px; }
-.stock-cell span { display: block; color: var(--muted); font: 400 9px var(--mono); }
+.stock-cell > div > span { display: block; color: var(--muted); font: 400 9px var(--mono); }
 .signal { padding: 5px 8px; border-radius: 6px; font-size: 9px; font-weight: 650; }
 .signal.watch { color: #8b6216; background: #f4ead5; }
 .signal.positive { color: var(--green-dark); background: var(--green-soft); }
