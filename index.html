@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="台股、全球新聞、供應鏈衝擊與多模型預測的每日研究儀表板。" />
+  <meta name="theme-color" content="#09120f" />
+  <title>Pulse 台股決策台</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Noto+Sans+TC:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" aria-label="主要導覽">
+      <a class="brand" href="#top" aria-label="Pulse 首頁">
+        <span class="brand-mark">P</span>
+        <span><strong>PULSE</strong><small>市場決策台</small></span>
+      </a>
+
+      <nav class="side-nav">
+        <a class="active" href="#overview"><span>01</span>今日總覽</a>
+        <a href="#forecast"><span>02</span>多模型預測</a>
+        <a href="#drivers"><span>03</span>供應鏈影響</a>
+        <a href="#news"><span>04</span>全球情報</a>
+        <a href="#watchlist"><span>05</span>觀察清單</a>
+      </nav>
+
+      <div class="sidebar-foot">
+        <p>資料模式</p>
+        <div id="sideDataStatus" class="source-state"><i></i>正在連線</div>
+        <p class="fineprint">研究用途，不構成投資建議</p>
+      </div>
+    </aside>
+
+    <div class="main-column">
+      <header id="top" class="topbar">
+        <button id="menuButton" class="icon-button menu-button" type="button" aria-label="開啟導覽">☰</button>
+        <div>
+          <p class="date-line" id="todayLabel">—</p>
+          <h1>早安，先看市場正在定價什麼。</h1>
+        </div>
+        <div class="top-actions">
+          <div id="dataBadge" class="data-badge"><i></i><span>載入市場資料</span></div>
+          <button id="refreshButton" class="refresh-button" type="button"><span>↻</span> 更新</button>
+        </div>
+      </header>
+
+      <main>
+        <section id="overview" class="section-block hero-section">
+          <div class="section-heading">
+            <div>
+              <p class="kicker">MARKET PULSE</p>
+              <h2>今日市場溫度</h2>
+            </div>
+            <p id="marketSummary" class="section-summary">正在整理價格、新聞與供應鏈訊號…</p>
+          </div>
+
+          <div class="market-grid" id="marketGrid">
+            <article class="market-card featured" data-market="taiex">
+              <div class="card-label"><span>TAIEX</span><b>台股加權</b></div>
+              <div class="market-value"><strong id="taiexValue">—</strong><span id="taiexChange" class="change flat">—</span></div>
+              <canvas class="sparkline" data-spark="taiex" aria-label="台股加權走勢"></canvas>
+              <footer><span>市場狀態</span><b id="taiexState">盤後</b></footer>
+            </article>
+            <article class="market-card" data-market="otc">
+              <div class="card-label"><span>OTC</span><b>櫃買指數</b></div>
+              <div class="market-value"><strong id="otcValue">—</strong><span id="otcChange" class="change flat">—</span></div>
+              <canvas class="sparkline" data-spark="otc" aria-label="櫃買指數走勢"></canvas>
+              <footer><span>中小型股</span><b id="otcState">中性</b></footer>
+            </article>
+            <article class="market-card" data-market="sox">
+              <div class="card-label"><span>SOX</span><b>費城半導體</b></div>
+              <div class="market-value"><strong id="soxValue">—</strong><span id="soxChange" class="change flat">—</span></div>
+              <canvas class="sparkline" data-spark="sox" aria-label="費城半導體指數走勢"></canvas>
+              <footer><span>台股連動</span><b>高</b></footer>
+            </article>
+            <article class="market-card" data-market="usd">
+              <div class="card-label"><span>USD/TWD</span><b>美元兌台幣</b></div>
+              <div class="market-value"><strong id="usdValue">—</strong><span id="usdChange" class="change flat">—</span></div>
+              <canvas class="sparkline" data-spark="usd" aria-label="美元台幣走勢"></canvas>
+              <footer><span>外資壓力</span><b id="fxState">觀察</b></footer>
+            </article>
+          </div>
+
+          <div class="pulse-strip">
+            <div><span class="pulse-dot"></span><p>AI 供應鏈</p><strong id="pulseAi">偏多</strong></div>
+            <div><span class="pulse-dot amber"></span><p>全球風險</p><strong id="pulseRisk">中等</strong></div>
+            <div><span class="pulse-dot blue"></span><p>外資動能</p><strong id="pulseFlow">待確認</strong></div>
+            <p id="pulseNote" class="pulse-note">系統會把新聞訊號映射到可觀察的產業與股票，不直接替你下買賣結論。</p>
+          </div>
+        </section>
+
+        <section id="forecast" class="section-block forecast-section">
+          <div class="section-heading forecast-heading">
+            <div>
+              <p class="kicker">MODEL LAB</p>
+              <h2>多模型走勢預測</h2>
+            </div>
+            <div class="stock-picker" id="stockPicker" role="tablist" aria-label="選擇股票">
+              <button class="active" data-stock="2330" type="button">2330 台積電</button>
+              <button data-stock="2317" type="button">2317 鴻海</button>
+              <button data-stock="2454" type="button">2454 聯發科</button>
+              <button data-stock="2382" type="button">2382 廣達</button>
+            </div>
+          </div>
+
+          <div class="forecast-layout">
+            <article class="chart-card">
+              <header class="stock-head">
+                <div>
+                  <div class="stock-title-row"><span id="stockSector" class="sector-tag">半導體</span><span id="stockCode">2330</span></div>
+                  <h3 id="stockName">台積電</h3>
+                </div>
+                <div class="stock-quote">
+                  <strong id="stockPrice">—</strong>
+                  <span id="stockChange" class="change flat">—</span>
+                </div>
+              </header>
+
+              <div class="horizon-row" id="horizonPicker" aria-label="預測期間">
+                <button class="active" data-days="3" type="button">3 日</button>
+                <button data-days="5" type="button">1 週</button>
+                <button data-days="10" type="button">2 週</button>
+                <button data-days="21" type="button">1 個月</button>
+                <button data-days="42" type="button">2 個月</button>
+                <button data-days="63" type="button">3 個月</button>
+              </div>
+
+              <div class="chart-stage">
+                <canvas id="forecastChart" aria-label="歷史價格與多模型預測走勢圖"></canvas>
+                <div id="chartTooltip" class="chart-tooltip" hidden></div>
+              </div>
+
+              <div class="model-legend" id="modelLegend">
+                <label><input type="checkbox" data-model="trend" checked /><span class="model-dot trend"></span>趨勢模型</label>
+                <label><input type="checkbox" data-model="momentum" checked /><span class="model-dot momentum"></span>動能模型</label>
+                <label><input type="checkbox" data-model="reversion" checked /><span class="model-dot reversion"></span>均值回歸</label>
+                <label><input type="checkbox" data-model="ensemble" checked /><span class="model-dot ensemble"></span>集成中位數</label>
+              </div>
+            </article>
+
+            <aside class="forecast-aside">
+              <article class="decision-card">
+                <p class="kicker">MODEL CONSENSUS</p>
+                <div class="consensus-ring" id="consensusRing"><span><b id="consensusScore">—</b><small>共識分數</small></span></div>
+                <h3 id="consensusLabel">計算中</h3>
+                <p id="consensusCopy">等待足夠歷史資料。</p>
+                <div class="range-box">
+                  <span id="rangeLabel">3 日預估區間</span>
+                  <strong id="forecastRange">—</strong>
+                </div>
+              </article>
+              <article class="risk-card">
+                <div><span>歷史波動</span><strong id="volatilityValue">—</strong></div>
+                <div><span>模型分歧</span><strong id="dispersionValue">—</strong></div>
+                <div><span>資料完整度</span><strong id="qualityValue">—</strong></div>
+              </article>
+            </aside>
+          </div>
+
+          <article class="validation-card">
+            <header>
+              <div><p class="kicker">WALK-FORWARD TEST</p><h3>模型驗證卡</h3></div>
+              <p>以過去資料逐段向前測試；數字越穩定越值得參考，仍不代表未來報酬。</p>
+            </header>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>模型</th><th>方向命中率</th><th>平均誤差</th><th>目前預估</th><th>可靠度</th></tr></thead>
+                <tbody id="modelTable"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section id="drivers" class="section-block drivers-section">
+          <div class="section-heading">
+            <div><p class="kicker">SUPPLY CHAIN RADAR</p><h2>供應鏈如何傳導到股價</h2></div>
+            <p class="section-summary">先看事件，再看受影響環節、股票與預估時間，不把所有新聞都當成同一天反映。</p>
+          </div>
+
+          <div class="drivers-grid">
+            <article class="impact-card primary-impact">
+              <header><span id="driverIcon">AI</span><div><p>今日主訊號</p><h3 id="driverTitle">AI 伺服器需求延續</h3></div><b id="driverDirection" class="impact-pill positive">正向</b></header>
+              <div id="chainFlow" class="chain-flow" aria-label="供應鏈影響路徑"></div>
+              <p id="driverReason" class="impact-reason">需求預期先影響伺服器 ODM，再傳導到先進製程與高階晶片供應商。</p>
+            </article>
+            <div class="impact-list" id="impactList"></div>
+          </div>
+        </section>
+
+        <section id="news" class="section-block news-section">
+          <div class="section-heading news-heading">
+            <div><p class="kicker">GLOBAL SIGNALS</p><h2>世界新聞，翻譯成投資影響</h2></div>
+            <div id="newsFilters" class="filter-tabs">
+              <button class="active" data-filter="all" type="button">全部</button>
+              <button data-filter="tw" type="button">台灣</button>
+              <button data-filter="world" type="button">全球</button>
+              <button data-filter="supply" type="button">供應鏈</button>
+            </div>
+          </div>
+          <div id="newsGrid" class="news-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="watchlist" class="section-block watchlist-section">
+          <div class="section-heading">
+            <div><p class="kicker">WATCHLIST</p><h2>股票觀察清單</h2></div>
+            <p class="section-summary">把模型共識、事件驅動與風險放在同一列比較。</p>
+          </div>
+          <div class="table-wrap watch-table-wrap">
+            <table class="watch-table">
+              <thead><tr><th>股票</th><th>現價 / 日變動</th><th>3 日</th><th>1 個月</th><th>主要驅動</th><th>風險</th><th>訊號</th></tr></thead>
+              <tbody id="watchlistBody"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="method-section">
+          <div><p class="kicker">HOW TO READ</p><h2>把預測當成範圍，不是答案。</h2></div>
+          <div class="method-grid">
+            <p><b>01</b><span><strong>先看資料模式</strong>即時連線與示範快照會明確標示。</span></p>
+            <p><b>02</b><span><strong>再看模型分歧</strong>模型越分歧，倉位與信心應越保守。</span></p>
+            <p><b>03</b><span><strong>最後看事件路徑</strong>確認新聞是否真的會影響營收、成本或估值。</span></p>
+          </div>
+        </section>
+      </main>
+
+      <footer class="page-footer">
+        <p>Pulse Market Intelligence</p>
+        <p>資料來源：TWSE 公開資訊、公開新聞 RSS；模型為教育型量化基準。</p>
+        <p>預測可能失準，不構成投資建議或報酬保證。</p>
+      </footer>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
