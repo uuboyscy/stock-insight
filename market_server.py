@@ -2,8 +2,8 @@
 """Pulse market dashboard server.
 
 Serves the single-page app and a small read-only API. Historical Taiwan stock
-prices come from the Taiwan Stock Exchange's public reports. When upstream
-services are unavailable, the browser keeps its clearly-labelled demo snapshot.
+prices come from Taiwan Stock Exchange and Taipei Exchange public reports. When
+upstream services are unavailable, the browser keeps its clearly-labelled demo snapshot.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ import json
 import mimetypes
 import os
 import re
+import ssl
 import threading
 import time
 import urllib.error
@@ -32,19 +33,23 @@ ROOT = Path(__file__).resolve().parent
 SYMBOLS = ("2330", "2317", "2454", "2382")
 CACHE_TTL_SECONDS = 15 * 60
 USER_AGENT = "PulseMarketDashboard/1.0 (educational research dashboard)"
+SSL_CONTEXT = ssl.create_default_context()
+if hasattr(ssl, "VERIFY_X509_STRICT"):
+    SSL_CONTEXT.verify_flags &= ~ssl.VERIFY_X509_STRICT
 cache_lock = threading.Lock()
 dashboard_cache: dict[str, Any] = {"time": 0.0, "payload": None}
+stock_cache: dict[str, dict[str, Any]] = {}
 
 
 def fetch_json(url: str, timeout: int = 6) -> Any:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/json"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with urllib.request.urlopen(request, timeout=timeout, context=SSL_CONTEXT) as response:
         return json.loads(response.read().decode("utf-8"))
 
 
 def fetch_text(url: str, timeout: int = 6) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, "Accept": "application/rss+xml,text/xml"})
-    with urllib.request.urlopen(request, timeout=timeout) as response:
+    with urllib.request.urlopen(request, timeout=timeout, context=SSL_CONTEXT) as response:
         return response.read().decode("utf-8", errors="replace")
 
 
@@ -77,7 +82,7 @@ def numeric(value: Any) -> float | None:
         return None
 
 
-def fetch_stock_history(symbol: str) -> dict[str, Any] | None:
+def fetch_twse_stock_history(symbol: str) -> dict[str, Any] | None:
     points: dict[str, float] = {}
     for month in month_keys():
         query = urllib.parse.urlencode({"response": "json", "date": month, "stockNo": symbol})
@@ -97,6 +102,69 @@ def fetch_stock_history(symbol: str) -> dict[str, Any] | None:
     if len(history) < 35:
         return None
     return {"symbol": symbol, "history": history[-145:], "source": "TWSE"}
+
+
+def fetch_tpex_stock_history(symbol: str) -> dict[str, Any] | None:
+    points: dict[str, float] = {}
+    for month in month_keys():
+        formatted_month = f"{month[:4]}/{month[4:6]}/01"
+        query = urllib.parse.urlencode({"code": symbol, "date": formatted_month, "id": "", "response": "json"})
+        url = f"https://www.tpex.org.tw/www/zh-tw/afterTrading/tradingStock?{query}"
+        try:
+            payload = fetch_json(url)
+        except (OSError, ValueError, urllib.error.URLError):
+            continue
+        tables = payload.get("tables", []) if isinstance(payload, dict) else []
+        for table in tables:
+            fields = [plain_text(str(field)) for field in table.get("fields", [])]
+            rows = table.get("data", [])
+            date_index = next((index for index, field in enumerate(fields) if "日期" in field), 0)
+            close_index = next((index for index, field in enumerate(fields) if "收盤" in field), 6)
+            for row in rows:
+                if len(row) <= max(date_index, close_index):
+                    continue
+                date = roc_to_iso(plain_text(str(row[date_index])))
+                close = numeric(plain_text(str(row[close_index])))
+                if date and close and close > 0:
+                    points[date] = close
+        for row in payload.get("aaData", []) if isinstance(payload, dict) else []:
+            if len(row) < 7:
+                continue
+            date = roc_to_iso(plain_text(str(row[0])))
+            close = numeric(plain_text(str(row[6])))
+            if date and close and close > 0:
+                points[date] = close
+    history = [{"date": date, "close": close} for date, close in sorted(points.items())]
+    if len(history) < 35:
+        return None
+    return {"symbol": symbol, "history": history[-145:], "source": "TPEx"}
+
+
+def fetch_stock_history(symbol: str, market: str = "twse") -> dict[str, Any] | None:
+    if market == "tpex":
+        return fetch_tpex_stock_history(symbol)
+    if market == "esb":
+        return None
+    return fetch_twse_stock_history(symbol)
+
+
+def stock_payload(symbol: str, market: str, force: bool = False) -> dict[str, Any]:
+    key = f"{market}:{symbol}"
+    with cache_lock:
+        cached = stock_cache.get(key)
+        if cached and not force and time.time() - cached["time"] < CACHE_TTL_SECONDS:
+            return cached["payload"]
+    result = fetch_stock_history(symbol, market)
+    payload = {
+        "symbol": symbol,
+        "market": market,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+        "history": result.get("history", []) if result else [],
+        "source": result.get("source", "unavailable") if result else "unavailable",
+    }
+    with cache_lock:
+        stock_cache[key] = {"time": time.time(), "payload": payload}
+    return payload
 
 
 def fetch_taiex_history() -> dict[str, Any] | None:
@@ -241,6 +309,18 @@ class PulseHandler(BaseHTTPRequestHandler):
         parsed = urllib.parse.urlparse(self.path)
         if parsed.path == "/api/health":
             self.send_json({"ok": True, "time": datetime.now(timezone.utc).isoformat()})
+            return
+        if parsed.path == "/api/stock":
+            params = urllib.parse.parse_qs(parsed.query)
+            symbol = params.get("symbol", [""])[0].upper()
+            market = params.get("market", ["twse"])[0].lower()
+            if not re.fullmatch(r"[0-9A-Z]{4,6}", symbol) or market not in {"twse", "tpex", "esb"}:
+                self.send_json({"error": "invalid symbol or market"}, HTTPStatus.BAD_REQUEST)
+                return
+            try:
+                self.send_json(stock_payload(symbol, market, force=params.get("refresh") == ["1"]))
+            except Exception as error:
+                self.send_json({"symbol": symbol, "market": market, "history": [], "error": str(error)}, HTTPStatus.OK)
             return
         if parsed.path == "/api/dashboard":
             params = urllib.parse.parse_qs(parsed.query)

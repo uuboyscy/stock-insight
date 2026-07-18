@@ -1,25 +1,38 @@
-const STOCK_META = {
-  "2330": {
-    name: "台積電", sector: "半導體", base: 1085, seed: 2330, volatility: 0.016,
-    driver: "AI 加速器與先進製程需求", risk: "地緣政治／高估值",
-    chain: [["終端需求", "AI 算力"], ["晶片設計", "GPU / ASIC"], ["先進製程", "台積電"], ["先進封裝", "CoWoS"]]
-  },
-  "2317": {
-    name: "鴻海", sector: "電子代工", base: 212, seed: 2317, volatility: 0.019,
-    driver: "AI 伺服器出貨與組裝訂單", risk: "毛利率／客戶集中",
-    chain: [["雲端資本支出", "Hyperscaler"], ["伺服器平台", "AI Server"], ["組裝製造", "鴻海"], ["機櫃出貨", "GB200 / GB300"]]
-  },
-  "2454": {
-    name: "聯發科", sector: "IC 設計", base: 1390, seed: 2454, volatility: 0.021,
-    driver: "手機復甦與 Edge AI 滲透", risk: "產品組合／競爭",
-    chain: [["終端換機", "智慧手機"], ["邊緣 AI", "端側運算"], ["晶片設計", "聯發科"], ["晶圓製造", "先進製程"]]
-  },
-  "2382": {
-    name: "廣達", sector: "AI 伺服器", base: 296, seed: 2382, volatility: 0.023,
-    driver: "雲端業者 AI 資本支出", risk: "出貨遞延／供應瓶頸",
-    chain: [["雲端需求", "CSP CapEx"], ["AI 平台", "GPU System"], ["ODM 設計", "廣達"], ["系統交付", "伺服器機櫃"]]
-  }
+const INDUSTRY_RISKS = {
+  半導體: "景氣循環／出口管制",
+  電子製造: "客戶集中／毛利率",
+  雲端硬體: "換機循環／庫存",
+  資安雲端: "專案遞延／競爭",
+  金融: "利差／信用成本",
+  航運: "運價／供需反轉",
+  航空: "油價／景氣循環",
+  ETF: "成分集中／追蹤誤差",
+  生技醫療: "臨床／法規風險",
+  綠能: "政策／供需失衡"
 };
+
+function buildChainPath(item) {
+  if (item.type === "ETF") return [["資金來源", "投資人"], ["選股規則", item.chain], ["資產組合", item.name], ["績效來源", item.relations[0]]];
+  if (item.industry === "半導體") {
+    if (item.chain.includes("晶圓代工")) return [["上游需求", "IC 設計"], ["製造環節", item.name], ["後段製程", "封裝測試"], ["終端需求", item.relations[0]]];
+    if (item.chain.includes("封裝")) return [["前段製程", "晶圓代工"], ["後段製程", item.name], ["模組整合", "系統廠"], ["終端需求", item.relations[0]]];
+    if (item.chain.includes("光罩")) return [["上游材料", item.name], ["前段製程", "晶圓製造"], ["後段製程", "封裝測試"], ["終端需求", item.relations[0]]];
+    return [["終端需求", item.relations[0]], ["核心元件", item.name], ["製造環節", "晶圓代工"], ["後段製程", "封裝測試"]];
+  }
+  if (["資安雲端", "雲端硬體", "電子製造"].includes(item.industry)) return [["上游算力", "晶片／零組件"], ["系統整合", item.stage === "整合" ? item.name : "伺服器 ODM"], [item.chain, item.name], ["終端客戶", "企業／雲端業者"]];
+  if (item.industry === "金融") return [["資金來源", "存款／資本"], ["金融服務", "銀行保險證券"], ["整合平台", item.name], ["資金需求", "企業／家庭"]];
+  if (["航運", "航空"].includes(item.industry)) return [["上游需求", "製造／旅運"], ["中介環節", "港口／物流"], [item.chain, item.name], ["終端市場", "全球貿易／消費"]];
+  return [["上游投入", item.relations[0]], ["核心環節", item.chain], ["觀察標的", item.name], ["終端需求", item.relations.at(-1)]];
+}
+
+const STOCK_META = Object.fromEntries(STOCK_UNIVERSE.map(item => [item.code, {
+  ...item,
+  sector: item.industry,
+  supplyChain: item.chain,
+  driver: `${item.chain}的需求、價格與出貨變化`,
+  risk: INDUSTRY_RISKS[item.industry] || "需求轉弱／估值波動",
+  chain: buildChainPath(item)
+}]));
 
 const MODEL_META = {
   trend: { label: "趨勢模型", color: "#4d80db" },
@@ -50,6 +63,9 @@ const state = {
   selectedStock: "2330",
   horizon: 3,
   enabledModels: new Set(Object.keys(MODEL_META)),
+  compareCodes: loadCompareCodes(),
+  universeFilters: { query: "", type: "all", group: "all", industry: "all", chain: "all", stage: "all" },
+  loadingStocks: new Set(),
   stocks: {},
   markets: structuredClone(FALLBACK_MARKETS),
   news: [...FALLBACK_NEWS],
@@ -70,6 +86,25 @@ const median = values => {
 };
 const fmt = (value, digits = 2) => Number(value).toLocaleString("zh-TW", { minimumFractionDigits: digits, maximumFractionDigits: digits });
 const pct = value => `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
+
+function loadCompareCodes() {
+  try {
+    const saved = JSON.parse(localStorage.getItem("pulse-compare-codes") || "null");
+    if (Array.isArray(saved)) {
+      const valid = saved.filter(code => STOCK_UNIVERSE_BY_CODE[code]).slice(0, 4);
+      if (valid.length) return valid;
+    }
+  } catch (_) {}
+  return ["2330", "2454", "2317", "2382"];
+}
+
+function saveCompareCodes() {
+  try { localStorage.setItem("pulse-compare-codes", JSON.stringify(state.compareCodes)); } catch (_) {}
+}
+
+function marketLabel(market) {
+  return { twse: "上市", tpex: "上櫃", esb: "興櫃" }[market] || market.toUpperCase();
+}
 
 function mulberry32(seed) {
   return function random() {
@@ -354,6 +389,140 @@ function drawForecastChart() {
   state.chartHitPoints = hitPoints;
 }
 
+function renderStockPicker() {
+  const codes = state.compareCodes.includes(state.selectedStock)
+    ? state.compareCodes
+    : [state.selectedStock, ...state.compareCodes].slice(0, 5);
+  $("#stockPicker").innerHTML = codes.map(code => {
+    const item = STOCK_META[code];
+    return `<button class="${code === state.selectedStock ? "active" : ""}" data-stock="${code}" type="button">${code} ${escapeHtml(item.name)}</button>`;
+  }).join("");
+}
+
+function addSelectOptions(selector, values) {
+  const select = $(selector);
+  values.forEach(value => {
+    const option = document.createElement("option");
+    option.value = value;
+    option.textContent = value;
+    select.append(option);
+  });
+}
+
+function populateUniverseFilters() {
+  addSelectOptions("#universeType", ["個股", "ETF"]);
+  addSelectOptions("#universeGroup", ["常用", "ETF", "半導體", "雲端產業", "金融業", "航運"]);
+  addSelectOptions("#universeIndustry", [...new Set(STOCK_UNIVERSE.map(item => item.industry))].sort((a, b) => a.localeCompare(b, "zh-Hant")));
+  addSelectOptions("#universeChain", [...new Set(STOCK_UNIVERSE.map(item => item.chain))].sort((a, b) => a.localeCompare(b, "zh-Hant")));
+  addSelectOptions("#universeStage", ["上游", "中游", "下游", "整合", "資產組合"]);
+  $("#universeTotal").textContent = STOCK_UNIVERSE.length;
+}
+
+function filteredUniverse() {
+  const filters = state.universeFilters;
+  const query = filters.query.trim().toLocaleLowerCase("zh-Hant");
+  return STOCK_UNIVERSE.filter(item => {
+    const searchable = [item.code, item.name, item.type, item.industry, item.chain, item.stage, ...item.groups, ...item.relations].join(" ").toLocaleLowerCase("zh-Hant");
+    return (!query || searchable.includes(query))
+      && (filters.type === "all" || item.type === filters.type)
+      && (filters.group === "all" || item.groups.includes(filters.group))
+      && (filters.industry === "all" || item.industry === filters.industry)
+      && (filters.chain === "all" || item.chain === filters.chain)
+      && (filters.stage === "all" || item.stage === filters.stage);
+  });
+}
+
+function renderUniverse() {
+  const rows = filteredUniverse();
+  $("#universeCount").textContent = rows.length;
+  const labels = { type: "資產", group: "群組", industry: "產業", chain: "供應鏈", stage: "角色" };
+  const active = Object.entries(state.universeFilters).filter(([key, value]) => key === "query" ? value.trim() : value !== "all");
+  $("#activeFilterTags").innerHTML = active.map(([key, value]) => `<span class="filter-token">${key === "query" ? "搜尋" : labels[key]}：${escapeHtml(value)}</span>`).join("");
+  $("#universeTableBody").innerHTML = rows.length ? rows.map(item => {
+    const selected = state.compareCodes.includes(item.code);
+    return `<tr class="${selected ? "is-selected" : ""}">
+      <td><div class="instrument-cell"><span class="stock-avatar">${item.code.slice(0, 2)}</span><div><strong>${escapeHtml(item.name)}</strong><span>${item.code}</span></div></div></td>
+      <td><span class="asset-pair"><b>${item.type}</b>${marketLabel(item.market)}</span></td>
+      <td>${escapeHtml(item.industry)}</td>
+      <td>${escapeHtml(item.chain)}</td>
+      <td><span class="stage-pill ${item.stage}">${item.stage}</span></td>
+      <td><span class="relation-list">${item.relations.map(relation => `<i class="relation-tag">${escapeHtml(relation)}</i>`).join("")}</span></td>
+      <td><span class="universe-actions"><button data-analyze="${item.code}" type="button">分析</button><button class="compare-button ${selected ? "active" : ""}" data-compare="${item.code}" type="button">${selected ? "已加入" : "+ 比較"}</button></span></td>
+    </tr>`;
+  }).join("") : '<tr><td colspan="7" class="universe-empty">沒有符合目前條件的標的，試著清除一個篩選。</td></tr>';
+}
+
+function renderCompareTray() {
+  const tray = $("#compareTray");
+  if (!state.compareCodes.length) {
+    tray.innerHTML = '<span class="compare-empty">從上方清單加入 1–4 檔標的</span>';
+    return;
+  }
+  tray.innerHTML = state.compareCodes.map(code => {
+    const item = STOCK_META[code];
+    return `<span class="compare-chip ${code === state.selectedStock ? "selected" : ""}"><button data-stock="${code}" type="button"><strong>${code}</strong> ${escapeHtml(item.name)}</button><button data-remove-compare="${code}" type="button" aria-label="移除 ${escapeHtml(item.name)}">×</button></span>`;
+  }).join("");
+}
+
+function toggleCompare(code) {
+  const index = state.compareCodes.indexOf(code);
+  if (index >= 0) {
+    state.compareCodes.splice(index, 1);
+  } else {
+    if (state.compareCodes.length >= 4) {
+      showToast("比較籃最多 4 檔，請先移除一檔");
+      return;
+    }
+    state.compareCodes.push(code);
+    ensureStockLive(code);
+  }
+  saveCompareCodes();
+  renderStockPicker();
+  renderCompareTray();
+  renderUniverse();
+  renderWatchlist();
+}
+
+function selectStock(code, scroll = false) {
+  if (!state.stocks[code]) return;
+  state.selectedStock = code;
+  state.forecastCache = null;
+  renderStockPicker();
+  renderCompareTray();
+  renderForecast();
+  ensureStockLive(code);
+  if (scroll) $("#forecast").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+async function ensureStockLive(code, force = false) {
+  const stock = state.stocks[code];
+  if (!stock || state.loadingStocks.has(code) || (!force && stock.source === "live")) return;
+  state.loadingStocks.add(code);
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 12000);
+    const query = new URLSearchParams({ symbol: code, market: stock.market, ...(force ? { refresh: "1" } : {}) });
+    const response = await fetch(`/api/stock?${query}`, { signal: controller.signal });
+    clearTimeout(timer);
+    if (!response.ok) throw new Error("stock history unavailable");
+    const remote = await response.json();
+    const history = (remote.history || []).map(row => ({ date: row.date, close: Number(row.close) })).filter(row => Number.isFinite(row.close));
+    if (history.length < 35) return;
+    const price = history.at(-1).close;
+    const previous = history.at(-2).close;
+    state.stocks[code] = { code, ...STOCK_META[code], history, price, change: (price / previous - 1) * 100, source: "live" };
+    state.mode = "live";
+    state.updatedAt = remote.updated_at || new Date().toISOString();
+    if (state.selectedStock === code) renderForecast();
+    renderWatchlist();
+    updateDataStatus(state.mode, state.updatedAt);
+  } catch (_) {
+    if (force) showToast(`${stock.name} 暫時使用示範快照`);
+  } finally {
+    state.loadingStocks.delete(code);
+  }
+}
+
 function renderForecast() {
   const stock = state.stocks[state.selectedStock];
   const fc = calculateCurrentForecast();
@@ -394,15 +563,33 @@ function renderModelTable(fc) {
 
 function renderSupplyChain() {
   const stock = state.stocks[state.selectedStock];
+  const consensusReturn = state.forecastCache?.consensusReturn || 0;
+  const direction = consensusReturn > .5 ? ["positive", "偏正向"] : consensusReturn < -.5 ? ["negative", "偏負向"] : ["neutral", "中性"];
+  const directionPill = $("#driverDirection");
+  directionPill.className = `impact-pill ${direction[0]}`;
+  directionPill.textContent = direction[1];
+  $("#driverIcon").textContent = stock.type === "ETF" ? "ETF" : stock.industry.slice(0, 2);
   $("#driverTitle").textContent = stock.driver;
-  $("#driverReason").textContent = `此路徑是 ${stock.name} 目前最重要的觀察假設。新聞必須進一步反映到訂單、出貨或毛利，才算真正落地。`;
+  $("#driverReason").textContent = `${stock.name} 位於「${stock.supplyChain}」的${stock.stage}位置。事件必須進一步反映到需求、價格、出貨或獲利，才算真正落地。`;
   $("#chainFlow").innerHTML = stock.chain.map(([label, value], index) => `${index ? '<span class="chain-arrow">→</span>' : ""}<div class="chain-node"><span>${label}</span><b>${value}</b></div>`).join("");
+  const relatedStocks = STOCK_UNIVERSE
+    .filter(item => item.code !== stock.code && item.type === stock.type)
+    .map(item => ({
+      ...item,
+      score: (item.industry === stock.industry ? 4 : 0)
+        + (item.chain === stock.supplyChain ? 5 : 0)
+        + item.relations.filter(relation => stock.relations.includes(relation)).length * 2
+        + (item.groups.some(group => stock.groups.includes(group)) ? 1 : 0)
+    }))
+    .filter(item => item.score > 1)
+    .sort((a, b) => b.score - a.score || a.code.localeCompare(b.code))
+    .slice(0, 4);
   const related = [
-    { title: "上游需求能見度", value: "+ 中期", copy: "法人說法需與月營收、法說指引交叉確認。", tone: "positive" },
-    { title: "估值與利率壓力", value: "− 短期", copy: "利率快速上行會先壓縮成長股評價。", tone: "negative" },
-    { title: stock.risk, value: "風險", copy: "模型不含突發政策與公司治理事件，需另設停損。", tone: "negative" }
+    { title: `${stock.supplyChain}能見度`, value: `${stock.stage}觀察`, copy: "用月營收、法說指引與同鏈公司交叉確認，避免只依單一新聞判斷。", tone: "positive" },
+    { title: stock.risk, value: "核心風險", copy: "模型不含突發政策與公司治理事件，需另設風險界線。", tone: "negative" }
   ];
-  $("#impactList").innerHTML = related.map(item => `<article class="impact-mini"><h4>${item.title}</h4><b class="${item.tone}">${item.value}</b><p>${item.copy}</p></article>`).join("");
+  $("#impactList").innerHTML = related.map(item => `<article class="impact-mini"><h4>${item.title}</h4><b class="${item.tone}">${item.value}</b><p>${item.copy}</p></article>`).join("")
+    + `<article class="impact-mini"><h4>同鏈／同產業比較</h4><b>${relatedStocks.length} 檔</b><div class="related-stock-list">${relatedStocks.map(item => `<button class="related-stock-button" data-related-stock="${item.code}" type="button">${item.code} ${escapeHtml(item.name)}</button>`).join("")}</div></article>`;
 }
 
 function classifyNews(item) {
@@ -432,7 +619,8 @@ function renderNews(filter = $("#newsFilters .active")?.dataset.filter || "all")
 }
 
 function renderWatchlist() {
-  $("#watchlistBody").innerHTML = Object.values(state.stocks).map(stock => {
+  const stocks = state.compareCodes.map(code => state.stocks[code]).filter(Boolean);
+  $("#watchlistBody").innerHTML = stocks.length ? stocks.map(stock => {
     const f3 = modelForecast(stock.history, 3).paths.ensemble.at(-1) / stock.price * 100 - 100;
     const f21 = modelForecast(stock.history, 21).paths.ensemble.at(-1) / stock.price * 100 - 100;
     const signalClass = f21 > 2 ? "positive" : f21 < -2 ? "caution" : "watch";
@@ -442,9 +630,9 @@ function renderWatchlist() {
       <td class="mono">${fmt(stock.price, stock.price > 100 ? 0 : 2)} <span class="change ${stock.change >= 0 ? "up" : "down"}">${pct(stock.change)}</span></td>
       <td class="mono"><span class="change ${f3 >= 0 ? "up" : "down"}">${pct(f3)}</span></td>
       <td class="mono"><span class="change ${f21 >= 0 ? "up" : "down"}">${pct(f21)}</span></td>
-      <td>${stock.driver}</td><td>${stock.risk}</td><td><span class="signal ${signalClass}">${signalText}</span></td>
+      <td>${stock.supplyChain} · ${stock.stage}</td><td>${stock.risk}</td><td><span class="signal ${signalClass}">${signalText}</span></td>
     </tr>`;
-  }).join("");
+  }).join("") : '<tr><td colspan="7" class="universe-empty">比較籃目前是空的，請從股票關係圖譜加入標的。</td></tr>';
 }
 
 function escapeHtml(value = "") {
@@ -458,13 +646,16 @@ function updateDataStatus(mode, updatedAt) {
   badge.className = `data-badge ${live ? "live" : "demo"}`;
   side.className = `source-state ${live ? "live" : "demo"}`;
   const time = updatedAt ? new Date(updatedAt).toLocaleTimeString("zh-TW", { hour: "2-digit", minute: "2-digit" }) : "";
-  badge.querySelector("span").textContent = live ? `TWSE 更新 ${time}` : "示範快照";
-  side.lastChild.textContent = live ? "TWSE 官方歷史" : "離線示範資料";
+  badge.querySelector("span").textContent = live ? `市場資料更新 ${time}` : "示範快照";
+  side.lastChild.textContent = live ? "TWSE／TPEx 官方歷史" : "離線示範資料";
 }
 
 function renderAll() {
   renderMarkets();
+  renderStockPicker();
   renderForecast();
+  renderUniverse();
+  renderCompareTray();
   renderNews();
   renderWatchlist();
   updateDataStatus(state.mode, state.updatedAt);
@@ -517,9 +708,7 @@ function bindEvents() {
   $("#stockPicker").addEventListener("click", event => {
     const button = event.target.closest("[data-stock]");
     if (!button) return;
-    state.selectedStock = button.dataset.stock;
-    $$("#stockPicker button").forEach(item => item.classList.toggle("active", item === button));
-    renderForecast();
+    selectStock(button.dataset.stock);
   });
   $("#horizonPicker").addEventListener("click", event => {
     const button = event.target.closest("[data-days]");
@@ -541,7 +730,57 @@ function bindEvents() {
     $$("#newsFilters button").forEach(item => item.classList.toggle("active", item === button));
     renderNews(button.dataset.filter);
   });
-  $("#refreshButton").addEventListener("click", () => fetchDashboard(true));
+  $("#universeSearch").addEventListener("input", event => {
+    state.universeFilters.query = event.target.value;
+    renderUniverse();
+  });
+  const filterBindings = {
+    universeType: "type",
+    universeGroup: "group",
+    universeIndustry: "industry",
+    universeChain: "chain",
+    universeStage: "stage"
+  };
+  Object.entries(filterBindings).forEach(([id, key]) => {
+    $(`#${id}`).addEventListener("change", event => {
+      state.universeFilters[key] = event.target.value;
+      renderUniverse();
+    });
+  });
+  $("#resetUniverseFilters").addEventListener("click", () => {
+    state.universeFilters = { query: "", type: "all", group: "all", industry: "all", chain: "all", stage: "all" };
+    $("#universeSearch").value = "";
+    Object.keys(filterBindings).forEach(id => { $(`#${id}`).value = "all"; });
+    renderUniverse();
+  });
+  $("#universeTableBody").addEventListener("click", event => {
+    const analyze = event.target.closest("[data-analyze]");
+    const compare = event.target.closest("[data-compare]");
+    if (analyze) selectStock(analyze.dataset.analyze, true);
+    if (compare) toggleCompare(compare.dataset.compare);
+  });
+  $("#compareTray").addEventListener("click", event => {
+    const remove = event.target.closest("[data-remove-compare]");
+    const stock = event.target.closest("[data-stock]");
+    if (remove) toggleCompare(remove.dataset.removeCompare);
+    else if (stock) selectStock(stock.dataset.stock);
+  });
+  $("#clearCompare").addEventListener("click", () => {
+    state.compareCodes = [];
+    saveCompareCodes();
+    renderStockPicker();
+    renderCompareTray();
+    renderUniverse();
+    renderWatchlist();
+  });
+  $("#impactList").addEventListener("click", event => {
+    const related = event.target.closest("[data-related-stock]");
+    if (related) selectStock(related.dataset.relatedStock, true);
+  });
+  $("#refreshButton").addEventListener("click", async () => {
+    await fetchDashboard(true);
+    await Promise.all([...new Set([state.selectedStock, ...state.compareCodes])].map(code => ensureStockLive(code, true)));
+  });
   $("#menuButton").addEventListener("click", () => document.body.classList.toggle("menu-open"));
   $$(".side-nav a").forEach(link => link.addEventListener("click", () => document.body.classList.remove("menu-open")));
   document.addEventListener("click", event => {
@@ -579,6 +818,7 @@ function init() {
   const now = new Date();
   $("#todayLabel").textContent = now.toLocaleDateString("zh-TW", { year: "numeric", month: "long", day: "numeric", weekday: "long" }).toUpperCase();
   initializeFallbackStocks();
+  populateUniverseFilters();
   bindEvents();
   renderAll();
   fetchDashboard(false);

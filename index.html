@@ -22,9 +22,10 @@
       <nav class="side-nav">
         <a class="active" href="#overview"><span>01</span>今日總覽</a>
         <a href="#forecast"><span>02</span>多模型預測</a>
-        <a href="#drivers"><span>03</span>供應鏈影響</a>
-        <a href="#news"><span>04</span>全球情報</a>
-        <a href="#watchlist"><span>05</span>觀察清單</a>
+        <a href="#universe"><span>03</span>股票關係圖譜</a>
+        <a href="#drivers"><span>04</span>供應鏈影響</a>
+        <a href="#news"><span>05</span>全球情報</a>
+        <a href="#watchlist"><span>06</span>比較清單</a>
       </nav>
 
       <div class="sidebar-foot">
@@ -98,12 +99,7 @@
               <p class="kicker">MODEL LAB</p>
               <h2>多模型走勢預測</h2>
             </div>
-            <div class="stock-picker" id="stockPicker" role="tablist" aria-label="選擇股票">
-              <button class="active" data-stock="2330" type="button">2330 台積電</button>
-              <button data-stock="2317" type="button">2317 鴻海</button>
-              <button data-stock="2454" type="button">2454 聯發科</button>
-              <button data-stock="2382" type="button">2382 廣達</button>
-            </div>
+            <div class="stock-picker" id="stockPicker" role="tablist" aria-label="選擇比較清單中的股票"></div>
           </div>
 
           <div class="forecast-layout">
@@ -174,6 +170,52 @@
           </article>
         </section>
 
+        <section id="universe" class="section-block universe-section">
+          <div class="section-heading universe-heading">
+            <div>
+              <p class="kicker">RELATIONSHIP MAP</p>
+              <h2>股票關係圖譜</h2>
+            </div>
+            <p class="section-summary">已收錄截圖中的 <strong id="universeTotal">—</strong> 檔唯一標的。用產業、供應鏈與上下游角色找到真正可比較的同類股。</p>
+          </div>
+
+          <div class="universe-shell">
+            <div class="universe-toolbar">
+              <label class="universe-search">
+                <span>搜尋</span>
+                <input id="universeSearch" type="search" placeholder="輸入名稱、代號或關係，例如 AI、散裝、金控" autocomplete="off" />
+              </label>
+              <label><span>資產</span><select id="universeType"><option value="all">全部資產</option></select></label>
+              <label><span>截圖群組</span><select id="universeGroup"><option value="all">全部群組</option></select></label>
+              <label><span>產業</span><select id="universeIndustry"><option value="all">全部產業</option></select></label>
+              <label><span>供應鏈</span><select id="universeChain"><option value="all">全部供應鏈</option></select></label>
+              <label><span>角色</span><select id="universeStage"><option value="all">全部角色</option></select></label>
+              <button id="resetUniverseFilters" class="reset-filter" type="button">清除篩選</button>
+            </div>
+
+            <div class="universe-meta">
+              <p><strong id="universeCount">—</strong> 檔符合條件</p>
+              <div id="activeFilterTags" class="active-filter-tags"></div>
+            </div>
+
+            <div class="table-wrap universe-table-wrap">
+              <table class="universe-table">
+                <thead><tr><th>標的</th><th>資產 / 市場</th><th>產業</th><th>供應鏈</th><th>角色</th><th>其他關係</th><th>操作</th></tr></thead>
+                <tbody id="universeTableBody"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <article class="compare-tray-card">
+            <div>
+              <p class="kicker">COMPARE BASKET · 最多 4 檔</p>
+              <h3>跨關係比較籃</h3>
+            </div>
+            <div id="compareTray" class="compare-tray"></div>
+            <button id="clearCompare" class="clear-compare" type="button">清空</button>
+          </article>
+        </section>
+
         <section id="drivers" class="section-block drivers-section">
           <div class="section-heading">
             <div><p class="kicker">SUPPLY CHAIN RADAR</p><h2>供應鏈如何傳導到股價</h2></div>
@@ -205,8 +247,8 @@
 
         <section id="watchlist" class="section-block watchlist-section">
           <div class="section-heading">
-            <div><p class="kicker">WATCHLIST</p><h2>股票觀察清單</h2></div>
-            <p class="section-summary">把模型共識、事件驅動與風險放在同一列比較。</p>
+            <div><p class="kicker">COMPARISON</p><h2>比較清單</h2></div>
+            <p class="section-summary">比較籃中的標的會集中在這裡，用相同模型尺度檢視短期與一個月情境。</p>
           </div>
           <div class="table-wrap watch-table-wrap">
             <table class="watch-table">
@@ -228,13 +270,14 @@
 
       <footer class="page-footer">
         <p>Pulse Market Intelligence</p>
-        <p>資料來源：TWSE 公開資訊、公開新聞 RSS；模型為教育型量化基準。</p>
+        <p>資料來源：TWSE／TPEx 公開資訊、公開新聞 RSS；模型為教育型量化基準。</p>
         <p>預測可能失準，不構成投資建議或報酬保證。</p>
       </footer>
     </div>
   </div>
 
   <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="./universe.js" defer></script>
   <script src="./app.js" defer></script>
 </body>
 </html>
