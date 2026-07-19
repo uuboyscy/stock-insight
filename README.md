@@ -19,13 +19,13 @@
 
 ```bash
 chmod +x ./start-app.sh
-./start-app.sh 8080
+./start-app.sh 8082
 ```
 
-瀏覽器開啟 `http://127.0.0.1:8080`。也可直接執行：
+本專案固定使用 port `8082`，瀏覽器開啟 `http://127.0.0.1:8082`。也可直接執行：
 
 ```bash
-python3 market_server.py --port 8080
+python3 market_server.py --port 8082
 ```
 
 ## 資料與模型說明
